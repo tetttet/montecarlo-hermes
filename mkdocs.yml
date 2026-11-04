@@ -1,0 +1,63 @@
+site_name: montecarlo-hermes
+site_description: Simulate your decisions before you make them.
+site_url: https://tetttet.github.io/montecarlo-hermes/
+repo_url: https://github.com/tetttet/montecarlo-hermes
+repo_name: tetttet/montecarlo-hermes
+edit_uri: edit/main/docs/
+copyright: MIT License
+
+theme:
+  name: material
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: blue
+      accent: blue
+      toggle: {icon: material/weather-night, name: Dark mode}
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: blue
+      accent: blue
+      toggle: {icon: material/weather-sunny, name: Light mode}
+  features:
+    - navigation.sections
+    - navigation.top
+    - content.code.copy
+    - search.suggest
+
+nav:
+  - Home: index.md
+  - Getting started: getting-started.md
+  - Guide:
+      - Decisions and options: guide/decisions.md
+      - Distributions: guide/distributions.md
+      - Correlated inputs: guide/correlations.md
+      - Metrics and criteria: guide/metrics.md
+      - Sensitivity and value of information: guide/sensitivity.md
+      - What-if analysis: guide/what-if.md
+      - Charts and reports: guide/reports.md
+      - YAML files: guide/yaml.md
+      - Command line: guide/cli.md
+  - Performance: performance.md
+  - API reference: reference/api.md
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [src]
+          options:
+            show_source: false
+            docstring_style: google
+            members_order: source
+            separate_signature: true
+            show_signature_annotations: true
+
+markdown_extensions:
+  - admonition
+  - tables
+  - toc: {permalink: true}
+  - pymdownx.superfences
+  - pymdownx.highlight
+  - pymdownx.inlinehilite
