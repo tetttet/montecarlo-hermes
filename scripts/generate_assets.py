@@ -1,4 +1,4 @@
-"""Regenerate the README images in docs/assets by running the examples.
+"""Regenerate the README images and the sample report by running the examples.
 
 Run:  python scripts/generate_assets.py
 Checks that every YAML example and its Python twin give identical results.
@@ -43,6 +43,14 @@ def main() -> None:
             result.plot_tornado(driver, str(ASSETS / f"{name}_tornado_{theme}.png"), theme=theme)
             result.plot_cdf(str(ASSETS / f"{name}_cdf_{theme}.png"), theme=theme)
         print(f"{name}: best = {result.best_option()}  (YAML and Python agree)")
+    coffee = mc.load(ROOT / "examples" / "coffee_shop.yaml")
+    sweep = coffee.sweep("monthly_sales", np.linspace(8000, 18000, 11))
+    for theme in ("light", "dark"):
+        sweep.plot(str(ASSETS / f"coffee_shop_sweep_{theme}.png"), theme=theme)
+    report = ROOT / "docs" / "examples" / "job_offer_report.html"
+    report.parent.mkdir(parents=True, exist_ok=True)
+    mc.load(ROOT / "examples" / "job_offer.yaml").run(n=50_000).to_html(report)
+    print(f"sweep breakeven: {sweep.breakeven('open', 'dont_open'):,.0f}; report: {report.name}")
 
 
 if __name__ == "__main__":
