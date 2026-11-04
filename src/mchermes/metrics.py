@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import asdict, dataclass
 
 import numpy as np
@@ -97,7 +97,7 @@ def summarize(outcomes: Mapping[str, FloatArray]) -> dict[str, OptionStats]:
 
 def rank_by(stats: Mapping[str, OptionStats], criterion: str) -> list[str]:
     """Option names from best to worst under ``criterion`` (see :data:`CRITERIA`)."""
-    keys = {
+    keys: dict[str, Callable[[OptionStats], float]] = {
         "expected_value": lambda s: -s.mean,
         "risk_averse": lambda s: -s.p10,
         "min_regret": lambda s: s.expected_regret,

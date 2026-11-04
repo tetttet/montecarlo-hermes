@@ -102,12 +102,19 @@ class Result:
         return plot_distributions(self, path, theme=theme, **kwargs)
 
     def plot_tornado(
-        self, option: str | None = None, path: str | None = None, *, theme: str = "light"
+        self,
+        option: str | None = None,
+        path: str | None = None,
+        *,
+        theme: str = "light",
+        **kwargs: Any,
     ) -> Figure:
         """Tornado chart of input sensitivities for ``option`` (default: best option)."""
         from mchermes.plotting import plot_tornado
 
-        return plot_tornado(self, option or self.best_option(), path, theme=theme)
+        name = option or self.best_option()
+        self._outcome(name)
+        return plot_tornado(self, name, path, theme=theme, **kwargs)
 
     def plot_cdf(self, path: str | None = None, *, theme: str = "light") -> Figure:
         """Cumulative distribution (S-curve) of every option."""
@@ -125,9 +132,12 @@ class Result:
                 "to_dataframe() needs pandas: pip install 'montecarlo-hermes[pandas]'"
             ) from None
         if kind == "samples":
-            return pd.DataFrame({**self.inputs, **self.outcomes})
+            frame: pd.DataFrame = pd.DataFrame({**self.inputs, **self.outcomes})
+            return frame
         if kind == "summary":
-            return pd.DataFrame({k: v.to_dict() for k, v in self.stats.items()}).T
+            rows = [{"option": k, **v.to_dict()} for k, v in self.stats.items()]
+            summary: pd.DataFrame = pd.DataFrame(rows).set_index("option")
+            return summary
         raise ValueError(f"kind must be 'samples' or 'summary', got {kind!r}")
 
     def __repr__(self) -> str:
