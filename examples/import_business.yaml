@@ -1,0 +1,24 @@
+# Source one container of goods from China or from Turkey?
+# Outcome: profit on the container, in dollars.
+name: Import from China or Turkey?
+samples: 100000
+seed: 2024
+variables:
+  units: 10000
+  sale_price: {dist: normal, mean: 9.5, std: 0.8}
+  china_unit_cost: {dist: normal, mean: 4.2, std: 0.3}
+  china_shipping: {dist: triangular, low: 3500, mode: 5000, high: 9000}
+  china_duty: {dist: uniform, low: 0.15, high: 0.25}     # tariff uncertainty
+  china_delay: {dist: bernoulli, p: 0.25}                # chance the shipment misses the season
+  turkey_unit_cost: {dist: normal, mean: 5.1, std: 0.25}
+  turkey_shipping: {dist: triangular, low: 1200, mode: 1800, high: 3000}
+  turkey_duty: {dist: uniform, low: 0.02, high: 0.06}
+  turkey_delay: {dist: bernoulli, p: 0.08}
+  delay_cost: {dist: triangular, low: 2000, mode: 6000, high: 15000}  # discounts, storage
+options:
+  china: >-
+    units * sale_price - units * china_unit_cost * (1 + china_duty)
+    - china_shipping - china_delay * delay_cost
+  turkey: >-
+    units * sale_price - units * turkey_unit_cost * (1 + turkey_duty)
+    - turkey_shipping - turkey_delay * delay_cost
