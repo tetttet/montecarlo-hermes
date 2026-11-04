@@ -104,9 +104,9 @@ def from_dict(data: Mapping[str, Any]) -> Decision:
         )
         for name, spec in variables.items():
             decision.uncertain(str(name), make_distribution(str(name), spec))
+    except ConfigError:
+        raise
     except (TypeError, ValueError) as error:
-        if isinstance(error, ConfigError):
-            raise
         raise ConfigError(str(error)) from None
     for name, formula in options.items():
         if isinstance(formula, bool) or not isinstance(formula, (str, int, float)):
