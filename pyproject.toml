@@ -1,0 +1,83 @@
+[build-system]
+requires = ["hatchling>=1.24"]
+build-backend = "hatchling.build"
+
+[project]
+name = "montecarlo-hermes"
+version = "0.1.0"
+description = "Simulate your decisions before you make them: a tiny Monte Carlo engine for decision-making under uncertainty."
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+requires-python = ">=3.10"
+authors = [{ name = "tetttet" }]
+keywords = ["monte-carlo", "simulation", "decision-analysis", "risk", "uncertainty", "sensitivity-analysis"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Financial and Insurance Industry",
+    "Intended Audience :: Science/Research",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Mathematics",
+    "Topic :: Office/Business :: Financial",
+    "Typing :: Typed",
+]
+dependencies = [
+    "numpy>=1.23",
+    "pyyaml>=6.0",
+    "matplotlib>=3.6",
+    "typer>=0.9",
+    "rich>=13.0",
+]
+
+[project.optional-dependencies]
+pandas = ["pandas>=1.5"]
+dev = [
+    "pytest>=7.4",
+    "pytest-cov>=4.1",
+    "ruff>=0.5",
+    "mypy>=1.10",
+    "types-PyYAML",
+    "pandas>=1.5",
+    "pandas-stubs",
+]
+
+[project.scripts]
+mchermes = "mchermes.cli:app"
+
+[project.urls]
+Homepage = "https://github.com/tetttet/montecarlo-hermes"
+Repository = "https://github.com/tetttet/montecarlo-hermes"
+Issues = "https://github.com/tetttet/montecarlo-hermes/issues"
+Changelog = "https://github.com/tetttet/montecarlo-hermes/blob/main/CHANGELOG.md"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/mchermes"]
+
+[tool.hatch.build.targets.sdist]
+include = ["src/mchermes", "tests", "examples", "README.md", "LICENSE", "CHANGELOG.md"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM", "RUF", "N", "C4", "PT"]
+
+[tool.mypy]
+python_version = "3.10"
+strict = true
+files = ["src/mchermes"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--cov=mchermes --cov-report=term-missing --cov-fail-under=90"
+
+[tool.coverage.run]
+branch = true
+source = ["mchermes"]
