@@ -14,13 +14,20 @@ from mchermes.distributions import (
     PERT,
     Bernoulli,
     Beta,
+    Binomial,
     Discrete,
     Distribution,
+    Empirical,
+    Exponential,
     Fixed,
+    Gamma,
     LogNormal,
     Normal,
+    Poisson,
+    StudentT,
     Triangular,
     Uniform,
+    Weibull,
 )
 from mchermes.formula import FormulaError
 
@@ -34,8 +41,25 @@ DISTRIBUTIONS: dict[str, Callable[..., Distribution]] = {
     "bernoulli": Bernoulli,
     "discrete": Discrete,
     "fixed": Fixed,
+    "exponential": Exponential,
+    "gamma": Gamma,
+    "weibull": Weibull,
+    "student_t": StudentT,
+    "poisson": Poisson,
+    "binomial": Binomial,
+    "empirical": Empirical,
 }
-TOP_LEVEL = {"name", "description", "samples", "seed", "criterion", "variables", "options"}
+TOP_LEVEL = {
+    "name",
+    "description",
+    "samples",
+    "seed",
+    "criterion",
+    "variables",
+    "correlations",
+    "options",
+}
+CLIP_KEYS = ("clip_low", "clip_high")
 
 
 class ConfigError(ValueError):
@@ -58,6 +82,7 @@ def make_distribution(name: str, spec: Any) -> Distribution:
         raise ConfigError(f"{where}: expected a number or a mapping with 'dist', got {spec!r}")
     params = dict(spec)
     kind = params.pop("dist", None)
+    clip = {key: params.pop(key) for key in CLIP_KEYS if key in params}
     if not isinstance(kind, str) or kind.lower() not in DISTRIBUTIONS:
         raise ConfigError(
             f"{where}: 'dist' must be one of {', '.join(DISTRIBUTIONS)}, got {kind!r}"
@@ -75,9 +100,26 @@ def make_distribution(name: str, spec: Any) -> Distribution:
             f"{where}: {kind} takes {', '.join(sorted(accepted))} ({'; '.join(problems)})"
         )
     try:
-        return factory(**params)
+        distribution = factory(**params)
+        if clip:
+            distribution = distribution.clip(clip.get("clip_low"), clip.get("clip_high"))
     except (TypeError, ValueError) as error:
         raise ConfigError(f"{where}: {error}") from None
+    return distribution
+
+
+def _add_correlations(decision: Decision, entries: Any) -> None:
+    """``correlations: [[a, b, rho], ...]`` (Spearman rank correlations)."""
+    if not isinstance(entries, list):
+        raise ConfigError("'correlations' must be a list of [variable, variable, rho]")
+    for i, entry in enumerate(entries):
+        where = f"correlations[{i}]"
+        if not isinstance(entry, list) or len(entry) != 3:
+            raise ConfigError(f"{where}: expected [variable, variable, rho], got {entry!r}")
+        try:
+            decision.correlate(str(entry[0]), str(entry[1]), entry[2])
+        except ValueError as error:
+            raise ConfigError(f"{where}: {error}") from None
 
 
 def from_dict(data: Mapping[str, Any]) -> Decision:
@@ -104,6 +146,8 @@ def from_dict(data: Mapping[str, Any]) -> Decision:
         )
         for name, spec in variables.items():
             decision.uncertain(str(name), make_distribution(str(name), spec))
+        if data.get("correlations") is not None:
+            _add_correlations(decision, data["correlations"])
     except ConfigError:
         raise
     except (TypeError, ValueError) as error:
