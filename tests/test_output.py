@@ -102,3 +102,56 @@ def test_to_dict_is_json_ready(coffee_result: mc.Result) -> None:
     assert data["best_option"] == "dont_open"
     assert data["options"]["dont_open"]["sensitivity"] == {}
     assert isinstance(data["options"]["open"]["mean"], float)
+
+
+def test_html_report(coffee_result: mc.Result, tmp_path: Path) -> None:
+    path = tmp_path / "report.html"
+    page = coffee_result.to_html(path, title="Coffee <shop>")
+    assert path.read_text(encoding="utf-8") == page
+    assert page.startswith("<!doctype html>")
+    assert "Coffee &lt;shop&gt;" in page
+    assert page.count('class="chart chart--light"') == 3  # distributions, cdf, one tornado
+    assert page.count("data:image/svg+xml;base64,") == 6
+    assert "★ dont_open" in page
+    assert "monthly_sales" in page
+    assert "$" not in page.split("<style>")[0]  # every placeholder was substituted
+    assert "http://" not in page.replace("http://www.w3.org", "")  # no external requests
+
+
+def test_html_report_tabs_and_certain_options() -> None:
+    d = mc.Decision(n=2_000, seed=0)
+    x = d.uncertain("x", mc.Normal(0, 1))
+    d.option("a", lambda: x).option("b", lambda: -x).option("c", 0)
+    page = d.run().to_html()
+    assert 'role="tablist"' in page
+    assert page.count('role="tabpanel"') == 2
+    certain = mc.Decision(n=10, seed=0).option("a", 1).option("b", 2).run().to_html()
+    assert "Every option is certain" in certain
+    assert "No uncertain inputs." in certain
+
+
+def test_notebook_repr(coffee_result: mc.Result) -> None:
+    html = coffee_result._repr_html_()
+    assert "<table>" in html
+    assert "Recommendation: <strong>dont_open</strong>" in html
+
+
+def test_to_csv(coffee_result: mc.Result, tmp_path: Path) -> None:
+    samples, summary = tmp_path / "samples.csv", tmp_path / "summary.csv"
+    coffee_result.to_csv(samples)
+    coffee_result.to_csv(summary, kind="summary")
+    loaded = pd.read_csv(samples)
+    assert list(loaded.columns) == ["rent", "monthly_sales", "margin", "open", "dont_open"]
+    np.testing.assert_allclose(loaded["open"], coffee_result.outcomes["open"])
+    table = pd.read_csv(summary, index_col="option")
+    assert table.loc["open", "mean"] == pytest.approx(coffee_result.stats["open"].mean)
+    with pytest.raises(ValueError, match="kind must be"):
+        coffee_result.to_csv(tmp_path / "x.csv", kind="wide")
+
+
+def test_summary_shows_value_of_information(coffee_result: mc.Result) -> None:
+    console = Console(record=True, width=200)
+    coffee_result.summary(console)
+    text = console.export_text()
+    assert "Value of perfect information" in text
+    assert "worth learning first: monthly_sales" in text
