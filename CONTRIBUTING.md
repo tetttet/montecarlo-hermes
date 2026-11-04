@@ -9,7 +9,8 @@ examples, distributions and docs improvements are all welcome.
 git clone https://github.com/tetttet/montecarlo-hermes.git
 cd montecarlo-hermes
 python -m venv .venv && source .venv/bin/activate
-pip install -e ".[dev]"
+pip install -e ".[dev,docs]"
+pre-commit install   # optional: run ruff on every commit
 ```
 
 ## Before you open a pull request
@@ -21,7 +22,8 @@ mypy
 pytest            # fails below 90% coverage
 ```
 
-CI runs the same checks on Python 3.10, 3.11 and 3.12.
+CI runs the same checks on Python 3.10 to 3.13. Preview the documentation with
+`mkdocs serve`.
 
 ## Guidelines
 

@@ -1,0 +1,13 @@
+cff-version: 1.2.0
+message: If you use montecarlo-hermes in research, please cite it as below.
+title: "montecarlo-hermes: Monte Carlo simulation for decision-making under uncertainty"
+type: software
+authors:
+  - given-names: Turan-Yahya
+    family-names: Gazizuly
+    alias: tetttet
+version: 0.2.0
+date-released: 2026-11-04
+license: MIT
+repository-code: https://github.com/tetttet/montecarlo-hermes
+keywords: [monte carlo, decision analysis, risk, uncertainty, value of information]
