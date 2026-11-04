@@ -25,7 +25,7 @@ jobs:
       - run: pip install -e ".[docs]"
       - run: mkdocs build --strict
       - if: github.event_name != 'pull_request'
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v5
         with:
           path: site
 
