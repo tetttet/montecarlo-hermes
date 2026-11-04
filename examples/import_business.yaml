@@ -15,6 +15,9 @@ variables:
   turkey_duty: {dist: uniform, low: 0.02, high: 0.06}
   turkey_delay: {dist: bernoulli, p: 0.08}
   delay_cost: {dist: triangular, low: 2000, mode: 6000, high: 15000}  # discounts, storage
+correlations:
+  # Both suppliers buy the same raw materials: their prices move together.
+  - [china_unit_cost, turkey_unit_cost, 0.4]
 options:
   china: >-
     units * sale_price - units * china_unit_cost * (1 + china_duty)

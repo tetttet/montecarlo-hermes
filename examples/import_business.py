@@ -24,6 +24,9 @@ def build() -> mc.Decision:
 
     delay_cost = d.uncertain("delay_cost", mc.Triangular(2_000, 6_000, 15_000))
 
+    # Both suppliers buy the same raw materials: their prices move together.
+    d.correlate(cn_cost, tr_cost, 0.4)
+
     revenue = lambda: units * price  # noqa: E731 - shared by both options
     d.option(
         "china",

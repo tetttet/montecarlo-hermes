@@ -45,11 +45,7 @@ def fmt(value: float) -> str:
 def summary_table(result: Result) -> Table:
     """Rich table with one column per option; the best option is starred."""
     best = result.best_option()
-    table = Table(
-        title=f"[bold]{result.name}[/]",
-        header_style="bold",
-        title_justify="left",
-    )
+    table = Table(header_style="bold")
     table.add_column("Metric", style="dim")
     for option in result.options:
         label = f"★ {option}" if option == best else option
@@ -79,8 +75,16 @@ def recommendation(result: Result) -> Text:
 def print_summary(result: Result, console: Console | None = None) -> None:
     """Print the summary table and the recommendation."""
     console = console or Console()
+    console.print(Text(result.name, style="bold"))
     console.print(summary_table(result))
     console.print(
         f"[dim]{result.n:,} samples · seed {result.seed} · criterion {result.criterion}[/]"
     )
     console.print(recommendation(result))
+    if len(result.options) > 1:
+        rows = result.value_of_information()[:3]
+        drivers = ", ".join(f"{r.variable} {fmt(r.value)}" for r in rows if r.value > 0)
+        line = f"Value of perfect information: {fmt(result.evpi())}"
+        console.print(
+            f"[dim]{line}" + (f" · worth learning first: {drivers}" if drivers else "") + "[/]"
+        )
