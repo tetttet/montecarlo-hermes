@@ -22,6 +22,7 @@ from mchermes.distributions import (
     Uniform,
 )
 from mchermes.formula import FormulaError
+from mchermes.loader import ConfigError, from_dict, load
 from mchermes.metrics import OptionStats
 from mchermes.result import Result
 from mchermes.sensitivity import Sensitivity
@@ -32,6 +33,7 @@ __all__ = [
     "PERT",
     "Bernoulli",
     "Beta",
+    "ConfigError",
     "Decision",
     "Discrete",
     "Distribution",
@@ -46,4 +48,6 @@ __all__ = [
     "Uniform",
     "Variable",
     "__version__",
+    "from_dict",
+    "load",
 ]
