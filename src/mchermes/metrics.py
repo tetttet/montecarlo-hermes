@@ -18,12 +18,15 @@ CRITERIA = ("expected_value", "risk_averse", "min_regret")
 class OptionStats:
     """Summary of one option's outcome distribution.
 
-    ``var_95`` is the 5th percentile of the outcome: you do at least this well with
-    95% confidence. ``cvar_95`` is the mean of the worst 5% of outcomes. Both are in
-    outcome units, so a negative value is a loss.
+    ``mean_se`` is the Monte Carlo standard error of the mean: rerunning with another
+    seed moves the mean by about this much. ``var_95`` is the 5th percentile of the
+    outcome: you do at least this well with 95% confidence. ``cvar_95`` is the mean
+    of the worst 5% of outcomes. Both are in outcome units, so a negative value is a
+    loss.
     """
 
     mean: float
+    mean_se: float
     median: float
     std: float
     min: float
@@ -48,9 +51,10 @@ def cvar(values: FloatArray, level: float = 0.95) -> float:
     """Mean of the worst ``1 - level`` share of outcomes (expected shortfall)."""
     if not 0 < level < 1:
         raise ValueError(f"level must be in (0, 1), got {level!r}")
-    ordered = np.sort(values)
-    tail = max(1, int(np.ceil(ordered.size * (1 - level) - 1e-9)))
-    return float(ordered[:tail].mean())
+    tail = max(1, int(np.ceil(values.size * (1 - level) - 1e-9)))
+    if tail >= values.size:
+        return float(values.mean())
+    return float(np.partition(values, tail - 1)[:tail].mean())
 
 
 def best_share(matrix: FloatArray) -> FloatArray:
@@ -75,10 +79,12 @@ def summarize(outcomes: Mapping[str, FloatArray]) -> dict[str, OptionStats]:
     for i, name in enumerate(names):
         x = matrix[i]
         p5, p10, p50, p90, p95 = (float(v) for v in np.percentile(x, PERCENTILES))
+        std = float(x.std(ddof=1)) if x.size > 1 else 0.0
         stats[name] = OptionStats(
             mean=float(x.mean()),
+            mean_se=std / float(np.sqrt(x.size)),
             median=p50,
-            std=float(x.std(ddof=1)) if x.size > 1 else 0.0,
+            std=std,
             min=float(x.min()),
             max=float(x.max()),
             p5=p5,
