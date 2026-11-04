@@ -69,6 +69,10 @@ src = ["src", "tests"]
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "UP", "SIM", "RUF", "N", "C4", "PT"]
 
+[tool.ruff.lint.per-file-ignores]
+"src/mchermes/formula.py" = ["N802"]     # ast visitor methods mirror node class names
+"src/mchermes/plotting.py" = ["RUF001"]  # typographic minus sign in chart labels
+
 [tool.mypy]
 python_version = "3.10"
 strict = true
