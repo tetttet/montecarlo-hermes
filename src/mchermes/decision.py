@@ -4,17 +4,22 @@ from __future__ import annotations
 
 import re
 import zlib
-from collections.abc import Callable
-from typing import Any
+from collections.abc import Callable, Iterable
+from pathlib import Path
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 from numpy.lib.mixins import NDArrayOperatorsMixin
 from numpy.typing import ArrayLike, NDArray
 
-from mchermes.distributions import Distribution
+from mchermes.correlation import check_coefficient, reorder
+from mchermes.distributions import Distribution, Fixed
 from mchermes.formula import Formula, compile_formula
 from mchermes.metrics import CRITERIA
 from mchermes.result import Result
+
+if TYPE_CHECKING:
+    from mchermes.sweep import Sweep
 
 FloatArray = NDArray[np.float64]
 OptionSpec = Callable[[], ArrayLike] | str | float | int
@@ -93,6 +98,7 @@ class Decision:
         self.variables: dict[str, Variable] = {}
         self.options: dict[str, OptionSpec] = {}
         self._formulas: dict[str, Formula] = {}
+        self.correlations: dict[tuple[str, str], float] = {}
         self._samples: dict[str, FloatArray] | None = None
 
     def uncertain(self, name: str, distribution: Distribution) -> Variable:
@@ -106,6 +112,36 @@ class Decision:
         variable = Variable(self, name, distribution)
         self.variables[name] = variable
         return variable
+
+    @classmethod
+    def from_yaml(cls, path: str | Path) -> Decision:
+        """Load a decision file; same as :func:`mchermes.load`."""
+        from mchermes.loader import load
+
+        return load(path)
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> Decision:
+        """Build from a parsed config; same as :func:`mchermes.from_dict`."""
+        from mchermes.loader import from_dict
+
+        return from_dict(data)
+
+    def correlate(self, a: str | Variable, b: str | Variable, rho: float) -> Decision:
+        """Make two inputs move together with Spearman rank correlation ``rho``.
+
+        Each input keeps its own distribution exactly; only the pairing of samples
+        changes (Iman-Conover). Use a negative ``rho`` for inputs that move apart.
+        """
+        names = []
+        for item in (a, b):
+            name = item.name if isinstance(item, Variable) else item
+            if name not in self.variables:
+                raise ValueError(f"unknown variable {name!r}; declare it with uncertain() first")
+            names.append(name)
+        first, second = sorted(names)
+        self.correlations[(first, second)] = check_coefficient(first, second, rho)
+        return self
 
     def option(self, name: str, outcome: OptionSpec) -> Decision:
         """Add an option whose outcome is a zero-argument callable, a formula or a number.
@@ -134,23 +170,50 @@ class Decision:
         n = self.n if n is None else _check_samples(n)
         seed = self.seed if seed is None else _check_seed(seed)
         if seed is None:
-            seed = int(np.random.SeedSequence().generate_state(1, np.uint64)[0])
+            seed = _fresh_seed()
         self._samples = self._sample_inputs(n, seed)
         outcomes = {name: self._evaluate(name, n) for name in self.options}
         return Result(self.name, n, seed, self.criterion, dict(self._samples), outcomes)
 
-    def _sample_inputs(self, n: int, seed: int) -> dict[str, FloatArray]:
-        """Independent draws per variable.
+    def sweep(
+        self, variable: str | Variable, values: Iterable[float], *, n: int | None = None
+    ) -> Sweep:
+        """Re-run the decision with ``variable`` fixed at each of ``values``.
 
-        TODO(correlation): correlated inputs plug in here. Draw standard-normal drivers
-        per variable from the same streams, apply a Gaussian copula with the user's
-        correlation matrix, and map through each distribution's inverse CDF.
+        Every run reuses the same seed (common random numbers), so differences between
+        runs come from the swept value, not from sampling noise.
         """
+        from mchermes.sweep import Sweep
+
+        name = variable.name if isinstance(variable, Variable) else variable
+        if name not in self.variables:
+            raise ValueError(f"unknown variable {name!r}")
+        grid = [float(v) for v in values]
+        if not grid:
+            raise ValueError("sweep needs at least one value")
+        handle = self.variables[name]
+        original, correlations = handle.distribution, self.correlations
+        seed = self.seed if self.seed is not None else _fresh_seed()
+        # A fixed value cannot be correlated: drop its pairs for the sweep.
+        self.correlations = {pair: r for pair, r in correlations.items() if name not in pair}
+        results = []
+        try:
+            for value in grid:
+                handle.distribution = Fixed(value)
+                results.append(self.run(n=n, seed=seed))
+        finally:
+            handle.distribution, self.correlations = original, correlations
+        return Sweep(name, grid, results)
+
+    def _sample_inputs(self, n: int, seed: int) -> dict[str, FloatArray]:
+        """Draw every variable from its own stream, then apply correlations."""
         samples = {}
         for name, variable in self.variables.items():
             values = variable.distribution.sample(stream(seed, name), n)
             values.setflags(write=False)
             samples[name] = values
+        if self.correlations:
+            samples.update(reorder(samples, self.correlations, stream(seed, "__correlations__")))
         return samples
 
     def _evaluate(self, name: str, n: int) -> FloatArray:
@@ -193,6 +256,10 @@ class Decision:
             f"Decision({self.name!r}, n={self.n}, variables={list(self.variables)}, "
             f"options={list(self.options)})"
         )
+
+
+def _fresh_seed() -> int:
+    return int(np.random.SeedSequence().generate_state(1, np.uint64)[0])
 
 
 def _check_samples(n: int) -> int:

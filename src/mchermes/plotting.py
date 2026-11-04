@@ -18,6 +18,7 @@ if TYPE_CHECKING:
     from matplotlib.typing import RcKeyType
 
     from mchermes.result import Result
+    from mchermes.sweep import Sweep
 
 FloatArray = NDArray[np.float64]
 
@@ -102,7 +103,9 @@ def _style(theme: Theme) -> Iterator[None]:
         yield
 
 
-def _header(ax: Axes, theme: Theme, title: str, subtitle: str) -> None:
+def _header(ax: Axes, theme: Theme, title: str, subtitle: str, show: bool = True) -> None:
+    if not show:
+        return
     ax.set_title(title, loc="left", pad=28, color=theme.text)
     ax.annotate(
         subtitle,
@@ -140,6 +143,14 @@ def density(values: FloatArray, grid: FloatArray) -> FloatArray:
     return smoothed
 
 
+def _visible_range(result: Result, names: list[str]) -> tuple[float, float]:
+    """Outcome range covering P0.5-P99.5 of every option, padded by 6%."""
+    lo = min(float(np.percentile(result.outcomes[n], 0.5)) for n in names)
+    hi = max(float(np.percentile(result.outcomes[n], 99.5)) for n in names)
+    pad = (hi - lo) * 0.06 or max(abs(lo), 1.0) * 0.5
+    return lo - pad, hi + pad
+
+
 def plot_distributions(
     result: Result,
     path: str | None = None,
@@ -147,15 +158,13 @@ def plot_distributions(
     theme: str = "light",
     options: list[str] | None = None,
     title: str | None = None,
+    header: bool = True,
 ) -> Figure:
     """Overlaid outcome densities with shaded P5-P95 bands and dashed means."""
     colors = get_theme(theme)
     names = options or result.options
-    lows = [float(np.percentile(result.outcomes[n], 0.5)) for n in names]
-    highs = [float(np.percentile(result.outcomes[n], 99.5)) for n in names]
-    lo, hi = min(lows), max(highs)
-    pad = (hi - lo) * 0.06 or max(abs(lo), 1.0) * 0.5
-    grid = np.linspace(lo - pad, hi + pad, 600)
+    lo, hi = _visible_range(result, names)
+    grid = np.linspace(lo, hi, 600)
     with _style(colors):
         fig, ax = plt.subplots(figsize=(10, 5.4))
         if grid[0] < 0 < grid[-1]:
@@ -185,6 +194,7 @@ def plot_distributions(
             colors,
             title or result.name,
             f"{result.n:,} simulations  ·  shaded band = P5–P95  ·  dashed line = mean",
+            header,
         )
         ax.legend(loc="upper right", labelcolor=colors.text)
     return _finish(fig, path)
@@ -198,6 +208,7 @@ def plot_tornado(
     theme: str = "light",
     top: int = 12,
     min_impact: float = 0.02,
+    header: bool = True,
 ) -> Figure:
     """Horizontal bars of each input's rank correlation with ``option``'s outcome.
 
@@ -236,11 +247,14 @@ def plot_tornado(
             colors,
             f"What drives “{option}”?",
             "Longer bar = bigger influence  ·  blue raises the outcome, orange lowers it",
+            header,
         )
     return _finish(fig, path)
 
 
-def plot_cdf(result: Result, path: str | None = None, *, theme: str = "light") -> Figure:
+def plot_cdf(
+    result: Result, path: str | None = None, *, theme: str = "light", header: bool = True
+) -> Figure:
     """Cumulative probability (S-curve) of every option, with P(loss) markers."""
     colors = get_theme(theme)
     levels = np.linspace(0, 100, 801)
@@ -275,6 +289,9 @@ def plot_cdf(result: Result, path: str | None = None, *, theme: str = "light") -
                 )
         if crosses_zero:
             ax.axvline(0, color=colors.muted, linewidth=1, alpha=0.6)
+        lo, hi = _visible_range(result, result.options)
+        if hi > lo:
+            ax.set_xlim(lo, hi)
         ax.set_ylim(0, 1.02)
         ax.yaxis.set_major_formatter(PercentFormatter(1.0))
         ax.xaxis.set_major_formatter(FuncFormatter(compact))
@@ -285,8 +302,48 @@ def plot_cdf(result: Result, path: str | None = None, *, theme: str = "light") -
             colors,
             "Cumulative outcome (S-curve)",
             "Further right = better  ·  read P(outcome ≤ x) off the curve",
+            header,
         )
         ax.legend(loc="lower right", labelcolor=colors.text)
+    return _finish(fig, path)
+
+
+def plot_sweep(sweep: Sweep, path: str | None = None, *, theme: str = "light") -> Figure:
+    """Expected outcome of each option across the swept values, with P10-P90 bands."""
+    colors = get_theme(theme)
+    x = np.asarray(sweep.values)
+    with _style(colors):
+        fig, ax = plt.subplots(figsize=(10, 5.4))
+        for i, name in enumerate(sweep.options):
+            color = colors.series[i % len(colors.series)]
+            low, high = sweep.percentiles(name, 10), sweep.percentiles(name, 90)
+            ax.fill_between(x, low, high, color=color, alpha=0.15, linewidth=0)
+            ax.plot(x, sweep.means(name), color=color, linewidth=2.2, marker="o", label=name)
+        for a_index, a in enumerate(sweep.options):
+            for b in sweep.options[a_index + 1 :]:
+                point = sweep.breakeven(a, b)
+                if point is not None:
+                    ax.axvline(point, color=colors.muted, linewidth=1, linestyle=(0, (4, 3)))
+                    ax.annotate(
+                        f"breakeven {compact(point)}",
+                        xy=(point, 1),
+                        xycoords=("data", "axes fraction"),
+                        xytext=(6, -14),
+                        textcoords="offset points",
+                        color=colors.text,
+                        fontsize=10,
+                    )
+        ax.xaxis.set_major_formatter(FuncFormatter(compact))
+        ax.yaxis.set_major_formatter(FuncFormatter(compact))
+        ax.set_xlabel(sweep.variable)
+        ax.set_ylabel("Expected outcome")
+        _header(
+            ax,
+            colors,
+            f"What if {sweep.variable} changes?",
+            "Line = expected outcome  ·  band = P10-P90  ·  dashed = where the ranking flips",
+        )
+        ax.legend(loc="best", labelcolor=colors.text)
     return _finish(fig, path)
 
 
@@ -297,5 +354,6 @@ __all__ = [
     "density",
     "plot_cdf",
     "plot_distributions",
+    "plot_sweep",
     "plot_tornado",
 ]
