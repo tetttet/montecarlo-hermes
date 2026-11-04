@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "montecarlo-hermes"
-version = "0.1.0"
+version = "0.2.0"
 description = "Simulate your decisions before you make them: a tiny Monte Carlo engine for decision-making under uncertainty."
 readme = "README.md"
 license = "MIT"
@@ -22,6 +22,7 @@ classifiers = [
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Topic :: Scientific/Engineering :: Mathematics",
     "Topic :: Office/Business :: Financial",
     "Typing :: Typed",
@@ -36,6 +37,10 @@ dependencies = [
 
 [project.optional-dependencies]
 pandas = ["pandas>=1.5"]
+docs = [
+    "mkdocs-material>=9.5",
+    "mkdocstrings[python]>=0.26",
+]
 dev = [
     "pytest>=7.4",
     "pytest-cov>=4.1",
@@ -53,6 +58,7 @@ mchermes = "mchermes.cli:app"
 Homepage = "https://github.com/tetttet/montecarlo-hermes"
 Repository = "https://github.com/tetttet/montecarlo-hermes"
 Issues = "https://github.com/tetttet/montecarlo-hermes/issues"
+Documentation = "https://tetttet.github.io/montecarlo-hermes/"
 Changelog = "https://github.com/tetttet/montecarlo-hermes/blob/main/CHANGELOG.md"
 
 [tool.hatch.build.targets.wheel]
