@@ -8,6 +8,14 @@
   <a href="https://github.com/tetttet/montecarlo-hermes/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/tetttet/montecarlo-hermes/actions/workflows/ci.yml/badge.svg"></a>
   <a href="https://codecov.io/gh/tetttet/montecarlo-hermes"><img alt="Coverage" src="https://codecov.io/gh/tetttet/montecarlo-hermes/branch/main/graph/badge.svg"></a>
   <a href="https://github.com/tetttet/montecarlo-hermes/blob/main/LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-1baf7a"></a>
+  <a href="https://tetttet.github.io/montecarlo-hermes/"><img alt="Docs" src="https://img.shields.io/badge/docs-online-2a78d6"></a>
+</p>
+
+<p align="center">
+  <a href="https://tetttet.github.io/montecarlo-hermes/">Documentation</a> ·
+  <a href="#30-second-quickstart">Quickstart</a> ·
+  <a href="examples/">Examples</a> ·
+  <a href="examples/quickstart.ipynb">Notebook</a>
 </p>
 
 <p align="center">
@@ -19,8 +27,8 @@
 
 Describe a decision: a few **options**, the **uncertain inputs** and a **formula** for the
 outcome of each option. **montecarlo-hermes** runs 100,000 possible futures in a fraction of a
-second and tells you which option wins, how often you would lose money, and which unknowns
-matter most.
+second and tells you which option wins, how often you would lose money, which unknowns matter
+most, and what it would be worth to learn them before you decide.
 
 The chart above answers *"Should I open a second coffee shop?"* The gut says yes. The
 simulation says there is a **73% chance of losing money** in the first year.
@@ -28,12 +36,12 @@ simulation says there is a **73% chance of losing money** in the first year.
 ## Why
 
 - **Decisions, not just simulations.** You get a recommendation, the probability that each
-  option is best, its downside (VaR/CVaR) and expected regret, without writing any statistics
-  code.
+  option is best, its downside (VaR/CVaR), expected regret, breakeven points and the value of
+  information, without writing any statistics code.
 - **Pandas-level easy.** Declare variables, write the formula as you would on a whiteboard,
   call `run()`. Everything is vectorized NumPy, so 100k samples take milliseconds.
 - **Works without Python.** Put the decision in a YAML file, run `mchermes run`, and share
-  the table, the JSON or the chart.
+  the table, the JSON, the chart or a standalone HTML report.
 
 ## Install
 
@@ -62,7 +70,7 @@ r.best_option()          # 'dont_open'
 r.prob_loss("open")      # 0.7336
 r.plot()                 # the chart above
 r.plot_tornado("open")   # what drives the result?
-r.to_dataframe()         # every sample, if pandas is installed
+r.to_html("report.html") # standalone report to share
 ```
 
 ```text
@@ -87,11 +95,34 @@ Open a second coffee shop?
 └─────────────┴─────────┴─────────────┘
 100,000 samples · seed 42 · criterion expected_value
 Recommendation: dont_open  (expected 0, P(loss) 0.0%, best in 73.4% of scenarios)
+Value of perfect information: 2,032 · worth learning first: monthly_sales 1,043, margin 494.60, rent 43.81
 ```
 
 Variables behave like NumPy arrays holding every sample, so `np.maximum(sales, 10_000)`,
 `np.where(rent > 3200, ...)` and any other vectorized expression work inside an option. The
 same seed always gives identical results.
+
+## Beyond the basics
+
+```python
+import numpy as np
+
+# Inputs that move together (Spearman rank correlation, marginals untouched)
+d.correlate("monthly_sales", "margin", 0.5)
+
+# What is it worth to find out before deciding?
+r.evpi()                       # 2,032: perfect forecast of everything
+r.value_of_information()       # monthly_sales 1,043 · margin 495 · rent 44
+
+# At what point does the decision flip?
+sweep = d.sweep("monthly_sales", np.linspace(8000, 18000, 11))
+sweep.breakeven("open", "dont_open")   # ≈ 14,371
+sweep.plot()
+
+# What do the good years look like?
+r.given("monthly_sales > 14000").best_option()   # 'open'
+r.compare("open", "dont_open").prob_a_better     # 0.27
+```
 
 ## YAML + CLI quickstart
 
@@ -112,27 +143,38 @@ options:
 ```bash
 mchermes init                                   # write an example decision.yaml
 mchermes run examples/coffee_shop.yaml          # table + recommendation
+mchermes run examples/coffee_shop.yaml --html report.html --csv samples.csv
 mchermes run examples/coffee_shop.yaml --plot coffee.png --theme dark
 mchermes run examples/coffee_shop.yaml --json   # machine-readable output
+mchermes run examples/coffee_shop.yaml --given "rent > 3300"
 mchermes run examples/job_offer.yaml -c risk_averse -n 1000000 --seed 1
+mchermes sweep examples/coffee_shop.yaml monthly_sales 8000 18000 --steps 11
+mchermes validate examples/import_business.yaml
 ```
 
 YAML formulas are **never passed to `eval`**. They are parsed with `ast` and only numbers,
 variable names, arithmetic (`+ - * / // % **`), comparisons, `and`/`or`/`not` and the functions
 `min`, `max`, `where`, `abs`, `log`, `exp` and `sqrt` are allowed. Anything else, such as
 `__import__`, attribute access or other function calls, is rejected with a clear error. A plain
-number in `variables` is a fixed value.
+number in `variables` is a fixed value, and a `correlations:` list (`- [a, b, 0.4]`) makes inputs
+move together.
 
 ## Features
 
-- 9 distributions with parameter validation and analytic `mean`/`std`
-- Vectorized simulation: formulas run on all samples at once
-- Reproducible: each variable has its own random stream derived from `(seed, name)`, so adding
+- **16 distributions**, including fat tails, counts and empirical data, plus `.clip()` bounds
+- **Correlated inputs** via Iman-Conover rank reordering
+- **Vectorized and fast**: 1M samples, 10 inputs and full analysis in well under a second
+  ([benchmarks](https://tetttet.github.io/montecarlo-hermes/performance/))
+- **Reproducible**: each variable has its own random stream derived from `(seed, name)`, so adding
   a variable never changes the draws of the others
-- Risk metrics, three decision criteria and Spearman tornado sensitivity
-- Charts in light and dark themes: distributions, tornado and S-curve
-- Rich terminal table, JSON output and pandas export
-- Fully typed (`mypy --strict`), 99% test coverage
+- **Risk metrics** and three decision criteria, plus option comparisons
+- **Sensitivity**: Spearman tornado per option
+- **Value of information**: EVPI and EVPPI per input
+- **What-if**: parameter sweeps with breakeven detection, conditional results with `given()`
+- **Output**: rich terminal table, charts in light and dark themes, a standalone HTML report,
+  Jupyter display, JSON, CSV and pandas
+- **Safe YAML formulas** compiled from `ast`, never `eval`
+- Fully typed (`mypy --strict`), 290+ tests at 99% coverage, CI on Python 3.10–3.13
 
 ### Distributions
 
@@ -146,7 +188,17 @@ number in `variables` is a fixed value.
 | Beta | `mc.Beta(alpha, beta, low=0, high=1)` | `{dist: beta, alpha, beta}` | Rates and shares |
 | Bernoulli | `mc.Bernoulli(p)` | `{dist: bernoulli, p}` | "Event happens with probability p" (1 or 0) |
 | Discrete | `mc.Discrete(values, probabilities)` | `{dist: discrete, values, probabilities}` | A few known scenarios |
+| Exponential | `mc.Exponential(mean)` | `{dist: exponential, mean}` | Waiting times |
+| Gamma | `mc.Gamma(shape, scale)` | `{dist: gamma, shape, scale}` | Positive skewed amounts, claims |
+| Weibull | `mc.Weibull(shape, scale)` | `{dist: weibull, shape, scale}` | Lifetimes, time to failure |
+| Student t | `mc.StudentT(df, loc, scale)` | `{dist: student_t, df, loc, scale}` | Fat-tailed shocks and returns |
+| Binomial | `mc.Binomial(trials, p)` | `{dist: binomial, trials, p}` | Successes out of n attempts |
+| Poisson | `mc.Poisson(lam)` | `{dist: poisson, lam}` | Number of events in a period |
+| Empirical | `mc.Empirical(data)` | `{dist: empirical, data: [...]}` | Bootstrap from history |
 | Fixed | `mc.Fixed(value)` | `value` or `{dist: fixed, value}` | Known constants |
+
+Bound any distribution with `.clip(low, high)` (`clip_low` / `clip_high` in YAML), for example
+`mc.Normal(10, 4).clip(low=0)`.
 
 `mc.LogNormal` takes the mean and std of the variable itself. Use
 `mc.LogNormal.from_log_params(mu, sigma)` for the parameters of `log(X)`.
@@ -163,6 +215,8 @@ number in `variables` is a fixed value.
 | CVaR 95% | `cvar_95` | Average of the worst 5% of outcomes |
 | Probability best | `prob_best` | Share of futures in which this option beats all others |
 | Expected regret | `expected_regret` | Average shortfall against the best option in each future |
+| MC error | `mean_se` | Standard error of the mean from sampling |
+| EVPI / EVPPI | `r.evpi()`, `r.value_of_information()` | What perfect information is worth before deciding |
 
 All metrics are in outcome units, so a negative VaR means a loss. Read them with
 `r.stats["open"].cvar_95`, `r.to_dict()` or `r.to_dataframe("summary")`.
@@ -214,13 +268,34 @@ Criteria can disagree, and that is usually the interesting part. In the
       <p align="center"><b>Import business</b>: China vs. Turkey</p>
     </td>
   </tr>
+  <tr>
+    <td width="50%">
+      <picture>
+        <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/tetttet/montecarlo-hermes/main/docs/assets/coffee_shop_sweep_dark.png">
+        <img alt="Sweep: opening breaks even at about 14.4k monthly sales" src="https://raw.githubusercontent.com/tetttet/montecarlo-hermes/main/docs/assets/coffee_shop_sweep_light.png">
+      </picture>
+      <p align="center"><b>Sweep</b>: <code>d.sweep(...).plot()</code></p>
+    </td>
+    <td width="50%">
+      <picture>
+        <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/tetttet/montecarlo-hermes/main/docs/assets/import_business_tornado_dark.png">
+        <img alt="Tornado for the China option: sale price dominates, then unit cost and delay" src="https://raw.githubusercontent.com/tetttet/montecarlo-hermes/main/docs/assets/import_business_tornado_light.png">
+      </picture>
+      <p align="center"><b>Drivers</b>: China option</p>
+    </td>
+  </tr>
 </table>
+
+**HTML report**: `r.to_html("report.html")` or `mchermes run ... --html report.html` writes one
+self-contained page with charts in both themes, metrics, drivers and value of information.
+[See an example](https://tetttet.github.io/montecarlo-hermes/examples/job_offer_report.html).
 
 Every image is produced by running the examples: `python scripts/generate_assets.py`.
 
 ## Examples
 
-Each example is available as a YAML file and a Python script that give identical results.
+Each example is available as a YAML file and a Python script that give identical results. The
+[quickstart notebook](examples/quickstart.ipynb) walks through every feature.
 
 | Example | Question | Files |
 |---|---|---|
@@ -230,18 +305,23 @@ Each example is available as a YAML file and a Python script that give identical
 
 ## Roadmap
 
-- [ ] Correlated inputs (Gaussian copula); the sampling extension point is already in place
+- [x] Correlated inputs
+- [x] Value of information (EVPI / EVPPI)
+- [x] Sweeps, breakeven and conditional analysis
+- [x] Standalone HTML reports
+- [ ] Multi-period models (cash flows over time, NPV)
+- [ ] Distribution fitting from data (`mc.fit(data)`)
 - [ ] Web UI for building and sharing decisions
 - [ ] Jupyter widgets: sliders on inputs with live charts
 - [ ] Integration with the HERMES decision platform
-- [ ] More distributions (Gamma, Poisson, empirical data) and time-series options
 
 Ideas and votes are welcome in [issues](https://github.com/tetttet/montecarlo-hermes/issues).
 
 ## Contributing
 
 Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for the dev setup and checks
-(`ruff`, `mypy`, `pytest`). If montecarlo-hermes helped you make a call, a ⭐ helps others find
+(`ruff`, `mypy`, `pytest`), and the [Code of Conduct](CODE_OF_CONDUCT.md). Report security issues
+privately as described in [SECURITY.md](SECURITY.md). If montecarlo-hermes helped you make a call, a ⭐ helps others find
 it.
 
 ## License
