@@ -49,7 +49,7 @@ def cvar(values: FloatArray, level: float = 0.95) -> float:
     if not 0 < level < 1:
         raise ValueError(f"level must be in (0, 1), got {level!r}")
     ordered = np.sort(values)
-    tail = max(1, int(np.ceil(ordered.size * (1 - level))))
+    tail = max(1, int(np.ceil(ordered.size * (1 - level) - 1e-9)))
     return float(ordered[:tail].mean())
 
 

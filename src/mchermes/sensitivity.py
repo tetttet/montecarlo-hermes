@@ -41,7 +41,12 @@ def spearman(x: FloatArray, y: FloatArray) -> float:
 
 
 def tornado(inputs: Mapping[str, FloatArray], outcome: FloatArray) -> list[Sensitivity]:
-    """Rank correlation of every non-constant input with ``outcome``, by impact."""
+    """Rank correlation of every non-constant input with ``outcome``, by impact.
+
+    Empty when the outcome itself is constant: nothing moves it.
+    """
+    if np.ptp(outcome) == 0:
+        return []
     rows = [
         Sensitivity(name, spearman(values, outcome))
         for name, values in inputs.items()
