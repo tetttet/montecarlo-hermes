@@ -43,6 +43,17 @@ def test_examples_load_and_run(name: str) -> None:
             mc.Discrete([1, 2], [0.5, 0.5]),
         ),
         ({"dist": "fixed", "value": 3}, mc.Fixed(3)),
+        ({"dist": "exponential", "mean": 2}, mc.Exponential(2)),
+        ({"dist": "gamma", "shape": 2, "scale": 3}, mc.Gamma(2, 3)),
+        ({"dist": "weibull", "shape": 2, "scale": 3}, mc.Weibull(2, 3)),
+        ({"dist": "student_t", "df": 4}, mc.StudentT(4)),
+        ({"dist": "poisson", "lam": 3}, mc.Poisson(3)),
+        ({"dist": "binomial", "trials": 10, "p": 0.5}, mc.Binomial(10, 0.5)),
+        ({"dist": "empirical", "data": [1, 2, 3]}, mc.Empirical([1, 2, 3])),
+        (
+            {"dist": "normal", "mean": 0, "std": 1, "clip_low": 0},
+            mc.Normal(0, 1).clip(0),
+        ),
     ],
 )
 def test_make_distribution(spec: object, expected: mc.Distribution) -> None:
@@ -55,7 +66,8 @@ def test_make_distribution(spec: object, expected: mc.Distribution) -> None:
         (True, "expected a number or a mapping"),
         ("normal", "expected a number or a mapping"),
         ({"mean": 1}, "'dist' must be one of"),
-        ({"dist": "gamma"}, "'dist' must be one of"),
+        ({"dist": "cauchy"}, "'dist' must be one of"),
+        ({"dist": "gamma"}, "missing scale, shape"),
         ({"dist": "normal", "mean": 1}, "missing std"),
         ({"dist": "normal", "mean": 1, "std": 1, "skew": 2}, "unknown skew"),
         ({"dist": "normal", "mean": 1, "std": -1}, "std must be > 0"),
@@ -88,6 +100,18 @@ BASE = {"variables": {"a": 1}, "options": {"go": "a * 2"}}
             {"variables": {"a": 1}, "options": {"go": "__import__('os')"}},
             "'__import__' is not allowed",
         ),
+        ({**BASE, "correlations": {"a": 1}}, "'correlations' must be a list"),
+        ({**BASE, "correlations": [["a", 0.5]]}, r"correlations\[0\]: expected \["),
+        ({**BASE, "correlations": [["a", "zz", 0.5]]}, r"correlations\[0\]: unknown variable"),
+        (
+            {
+                "variables": {
+                    "a": {"dist": "normal", "mean": 0, "std": 1, "clip_low": 1, "clip_high": 0}
+                },
+                "options": {"x": "a"},
+            },
+            "clip needs low < high",
+        ),
     ],
 )
 def test_bad_config(data: object, message: str) -> None:
@@ -108,3 +132,28 @@ def test_invalid_yaml(tmp_path: Path) -> None:
     path.write_text("options: [unclosed", encoding="utf-8")
     with pytest.raises(mc.ConfigError, match="invalid YAML"):
         mc.load(path)
+
+
+def test_yaml_correlations(tmp_path: Path) -> None:
+    path = tmp_path / "c.yaml"
+    path.write_text(
+        "variables:\n"
+        "  a: {dist: normal, mean: 0, std: 1}\n"
+        "  b: {dist: uniform, low: 0, high: 1}\n"
+        "correlations:\n"
+        "  - [a, b, 0.6]\n"
+        "options:\n"
+        "  go: a + b\n",
+        encoding="utf-8",
+    )
+    decision = mc.Decision.from_yaml(path)
+    assert decision.correlations == {("a", "b"): 0.6}
+    result = decision.run(n=20_000, seed=1)
+    from mchermes.sensitivity import spearman
+
+    assert spearman(result.inputs["a"], result.inputs["b"]) == pytest.approx(0.6, abs=0.02)
+
+
+def test_decision_from_dict_alias() -> None:
+    decision = mc.Decision.from_dict({"variables": {"a": 2}, "options": {"go": "a * 3"}})
+    np.testing.assert_array_equal(decision.run(n=3).outcomes["go"], 6)

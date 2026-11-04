@@ -92,3 +92,50 @@ def test_version_and_help() -> None:
     help_text = runner.invoke(app, ["--help"]).output
     assert "run" in help_text
     assert "init" in help_text
+
+
+def test_run_html_csv_and_given(tmp_path: Path) -> None:
+    html, csv = tmp_path / "r.html", tmp_path / "s.csv"
+    result = runner.invoke(
+        app,
+        ["run", COFFEE, "-n", "2000", "--html", str(html), "--csv", str(csv), "-g", "rent > 3300"],
+    )
+    assert result.exit_code == 0, result.output
+    assert "| rent > 3300" in result.output
+    assert "Report saved" in result.output
+    assert html.read_text(encoding="utf-8").startswith("<!doctype html>")
+    assert csv.read_text(encoding="utf-8").startswith("rent,monthly_sales,margin")
+
+
+def test_run_given_errors() -> None:
+    result = runner.invoke(app, ["run", COFFEE, "-n", "500", "-g", "nope > 1"])
+    assert result.exit_code == 1
+    assert "unknown variable" in result.output
+
+
+def test_sweep_command(tmp_path: Path) -> None:
+    out = tmp_path / "sweep.png"
+    args = ["sweep", COFFEE, "monthly_sales", "8000", "18000", "-k", "6", "-n", "5000"]
+    result = runner.invoke(app, [*args, "--seed", "3", "--plot", str(out)])
+    assert result.exit_code == 0, result.output
+    assert "mean open" in result.output
+    assert "Breakeven open vs dont_open: monthly_sales ≈ 14," in result.output
+    assert out.stat().st_size > 10_000
+
+
+def test_sweep_command_errors() -> None:
+    result = runner.invoke(app, ["sweep", COFFEE, "nope", "1", "2"])
+    assert result.exit_code == 1
+    assert "unknown variable" in result.output
+
+
+def test_validate_command(tmp_path: Path) -> None:
+    result = runner.invoke(app, ["validate", str(EXAMPLES / "import_business.yaml")])
+    assert result.exit_code == 0
+    assert "OK:" in result.output
+    assert "11 variables, 2 options, 1 correlations" in result.output
+    bad = tmp_path / "bad.yaml"
+    bad.write_text("options: {go: 'missing * 2'}\n", encoding="utf-8")
+    failed = runner.invoke(app, ["validate", str(bad)])
+    assert failed.exit_code == 1
+    assert "unknown variable" in failed.output

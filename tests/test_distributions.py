@@ -15,6 +15,16 @@ ALL = [
     mc.Bernoulli(0.3),
     mc.Discrete([1, 2, 10], [0.2, 0.5, 0.3]),
     mc.Fixed(4.5),
+    mc.Exponential(3),
+    mc.Gamma(2, 3),
+    mc.Gamma.from_mean_std(10, 4),
+    mc.Weibull(1.5, 10),
+    mc.StudentT(5, loc=1, scale=2),
+    mc.Poisson(4),
+    mc.Binomial(20, 0.3),
+    mc.Empirical([1, 2, 3, 10]),
+    mc.Normal(0, 1).clip(0),
+    mc.Normal(0, 1).clip(-1, 1),
 ]
 
 
@@ -92,8 +102,58 @@ def test_repr_and_equality() -> None:
         (lambda: mc.Discrete([1, 2], [0.5, 0.6]), "sum to 1"),
         (lambda: mc.Discrete("ab", [0.5, 0.5]), "lists of numbers"),
         (lambda: mc.Fixed(float("inf")), "must be finite"),
+        (lambda: mc.Exponential(0), "mean must be > 0"),
+        (lambda: mc.Gamma(0, 1), "shape must be > 0"),
+        (lambda: mc.Gamma.from_mean_std(1, 0), "std must be > 0"),
+        (lambda: mc.Weibull(1, -1), "scale must be > 0"),
+        (lambda: mc.StudentT(0), "df must be > 0"),
+        (lambda: mc.Poisson(0), "lam must be > 0"),
+        (lambda: mc.Binomial(2.5, 0.5), "non-negative integer"),
+        (lambda: mc.Binomial(-1, 0.5), "non-negative integer"),
+        (lambda: mc.Binomial(10, 2), r"\[0, 1\]"),
+        (lambda: mc.Empirical([]), "at least one observation"),
+        (lambda: mc.Empirical("abc"), "list of numbers"),
+        (lambda: mc.Empirical([1, "x"]), "list of numbers"),
+        (lambda: mc.Empirical([1, float("nan")]), "must be finite"),
+        (lambda: mc.Normal(0, 1).clip(), "low, high or both"),
+        (lambda: mc.Normal(0, 1).clip(2, 1), "low < high"),
     ],
 )
 def test_invalid_parameters(factory: object, message: str) -> None:
     with pytest.raises(ValueError, match=message):
         factory()  # type: ignore[operator]
+
+
+def test_draw_is_seeded() -> None:
+    a = mc.PERT(1, 2, 6).draw(5, seed=0)
+    np.testing.assert_array_equal(a, mc.PERT(1, 2, 6).draw(5, seed=0))
+    assert a.shape == (5,)
+
+
+def test_counts_are_integers() -> None:
+    values = mc.Poisson(3).draw(1000, seed=1)
+    np.testing.assert_array_equal(values, np.round(values))
+    assert mc.Binomial(10, 0.5).draw(1000, seed=1).max() <= 10
+
+
+def test_empirical_resamples_data() -> None:
+    data = [3.0, 5.0, 8.0]
+    assert set(np.unique(mc.Empirical(data).draw(1000, seed=0))) == set(data)
+    assert mc.Empirical(np.array(data)) == mc.Empirical(data)
+    assert mc.Empirical(data) != mc.Empirical([1.0])
+    assert len({mc.Empirical(data), mc.Empirical(data)}) == 1
+    assert repr(mc.Empirical(data)) == "Empirical(n=3, mean=5.333333333333)"
+
+
+def test_clip_bounds_values() -> None:
+    values = mc.Normal(0, 1).clip(-1, 1).draw(10_000, seed=0)
+    assert values.min() == -1
+    assert values.max() == 1
+    with pytest.raises(TypeError, match="distribution to clip"):
+        mc.Clipped(5, 0, 1)  # type: ignore[arg-type]
+
+
+def test_student_t_moments_for_low_df() -> None:
+    assert np.isnan(mc.StudentT(1).mean)
+    assert np.isnan(mc.StudentT(1).std)
+    assert mc.StudentT(1.5).std == float("inf")
