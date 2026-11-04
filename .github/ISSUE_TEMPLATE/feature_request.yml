@@ -1,0 +1,21 @@
+name: Feature request
+description: Suggest a distribution, metric, chart or workflow
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What decision are you trying to model?
+      description: The real-world problem helps us design the right API.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: How would you like it to look in Python or YAML?
+      render: python
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives you considered
