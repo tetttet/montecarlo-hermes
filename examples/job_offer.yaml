@@ -1,0 +1,20 @@
+# Stay at the current job or accept an offer with a bonus that may not be paid?
+# Outcome: total compensation over the next two years, in dollars.
+name: Accept the new job offer?
+samples: 100000
+seed: 7
+variables:
+  current_salary: {dist: normal, mean: 92000, std: 2500}
+  raise_pct: {dist: uniform, low: 0.02, high: 0.05}     # yearly raise if you stay
+  new_base: 96000                                        # a plain number is a fixed value
+  bonus_paid: {dist: bernoulli, p: 0.5}                  # does the bonus actually happen?
+  bonus: {dist: pert, low: 5000, mode: 12000, high: 30000}
+  equity: {dist: lognormal, mean: 8000, std: 12000}      # startup equity: usually small, sometimes big
+  relocation: {dist: triangular, low: 3000, mode: 6000, high: 12000}
+  layoff: {dist: bernoulli, p: 0.15}                     # risk the new company cuts staff
+  months_unemployed: {dist: discrete, values: [2, 4, 6], probabilities: [0.5, 0.3, 0.2]}
+options:
+  stay: "current_salary * (1 + raise_pct) + current_salary * (1 + raise_pct) ** 2"
+  accept: >-
+    2 * new_base + 2 * bonus_paid * bonus + equity - relocation
+    - layoff * months_unemployed / 12 * new_base
