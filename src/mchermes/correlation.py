@@ -76,7 +76,8 @@ def reorder(
     result = {}
     for j, name in enumerate(names):
         values = np.empty(n)
-        values[np.argsort(scores[:, j], kind="stable")] = np.sort(samples[name])
+        # Continuous normal scores have no ties, so the default (non-stable) sort is exact.
+        values[np.argsort(scores[:, j])] = np.sort(samples[name])
         values.setflags(write=False)
         result[name] = values
     return result
