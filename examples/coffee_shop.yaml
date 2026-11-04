@@ -1,0 +1,10 @@
+name: Open a second coffee shop?
+samples: 100000
+seed: 42
+variables:
+  rent: {dist: normal, mean: 3000, std: 300}
+  monthly_sales: {dist: triangular, low: 8000, mode: 12000, high: 18000}
+  margin: {dist: uniform, low: 0.25, high: 0.4}
+options:
+  open: "monthly_sales * margin * 12 - rent * 12 - 20000"
+  dont_open: "0"
