@@ -43,7 +43,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.10", "3.11", "3.12"]
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -52,6 +52,10 @@ jobs:
           cache: pip
       - run: pip install -e ".[dev]"
       - run: pytest --cov-report=xml
+      - name: Examples run end to end
+        run: |
+          for f in examples/*.yaml; do mchermes validate "$f"; done
+          MPLBACKEND=Agg python scripts/generate_assets.py
       - name: Upload coverage
         if: matrix.python-version == '3.12'
         uses: codecov/codecov-action@v4
