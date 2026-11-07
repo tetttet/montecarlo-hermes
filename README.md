@@ -324,6 +324,6 @@ Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for the dev se
 privately as described in [SECURITY.md](SECURITY.md). If montecarlo-hermes helped you make a call, a ⭐ helps others find
 it.
 
-## License
+## License T.Gazizuly
 
 [MIT](LICENSE)
